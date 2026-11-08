@@ -3,41 +3,82 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>রাহাত - বাংলা চ্যাট</title>
+<title>বাংলা ক্যারেক্টার চ্যাট</title>
 <style>
-  body{margin:0;font-family:sans-serif;background:#111;color:#eee;display:flex;flex-direction:column;height:100vh}
-  header{padding:14px;background:#1c1c1c;font-weight:bold;text-align:center}
+  body{margin:0;font-family:sans-serif;background:#111;color:#eee;height:100vh;display:flex;flex-direction:column}
+  header{padding:14px;background:#1c1c1c;font-weight:bold;text-align:center;position:relative}
+  #back{position:absolute;left:10px;top:8px;background:none;border:0;color:#eee;font-size:24px;display:none}
+  #home{flex:1;overflow-y:auto;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start}
+  .card{background:#1f1f1f;border-radius:14px;padding:16px;text-align:center}
+  .card .e{font-size:42px}
+  .card .n{font-weight:bold;margin-top:6px}
+  .card .d{font-size:13px;color:#aaa;margin-top:4px}
+  #chatview{display:none;flex:1;flex-direction:column;min-height:0}
   #chat{flex:1;overflow-y:auto;padding:12px}
   .msg{max-width:80%;margin:8px 0;padding:10px 14px;border-radius:14px;line-height:1.5;white-space:pre-wrap}
   .user{background:#2563eb;margin-left:auto}
   .bot{background:#2a2a2a}
   form{display:flex;gap:8px;padding:10px;background:#1c1c1c}
   input{flex:1;padding:12px;border-radius:10px;border:0;font-size:16px}
-  button{padding:12px 18px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-size:16px}
+  button.send{padding:12px 18px;border:0;border-radius:10px;background:#2563eb;color:#fff;font-size:16px}
 </style>
 </head>
 <body>
-<header>🧑 রাহাত (তোমার ঢাকার বন্ধু)</header>
-<div id="chat"><div class="msg bot">কী খবর দোস্ত? আজকে কেমন কাটছে? 😄</div></div>
-<form id="f">
-  <input id="t" placeholder="বাংলায় লেখো..." autocomplete="off">
-  <button>পাঠাও</button>
-</form>
+<header><button id="back">←</button><span id="title">কার সাথে কথা বলবে?</span></header>
+<div id="home"></div>
+<div id="chatview">
+  <div id="chat"></div>
+  <form id="f">
+    <input id="t" placeholder="বাংলায় লেখো..." autocomplete="off">
+    <button class="send">পাঠাও</button>
+  </form>
+</div>
 <script>
-const chat=document.getElementById('chat'),f=document.getElementById('f'),t=document.getElementById('t');
-let history=[];
-function add(text,cls){const d=document.createElement('div');d.className='msg '+cls;d.textContent=text;chat.appendChild(d);chat.scrollTop=chat.scrollHeight;return d}
+const CHARS=[
+ {id:"rahat",e:"🧑",n:"রাহাত",d:"ঢাকার মজার বন্ধু",g:"কী খবর দোস্ত? আজকে কেমন কাটছে? 😄"},
+ {id:"tithi",e:"👩",n:"তিথি",d:"আন্তরিক ও বোঝে এমন বান্ধবী",g:"হাই! কেমন আছো? আজকে কী করলে? 😊"},
+ {id:"sir",e:"👨‍🏫",n:"রহমান স্যার",d:"ধৈর্যশীল শিক্ষক, পড়াশোনা ও ইংরেজি",g:"আসসালামু আলাইকুম। আজ কী শিখতে চাও?"},
+ {id:"nanu",e:"👵",n:"নানু",d:"রূপকথা ও গল্প বলেন",g:"আয় নানুভাই, কাছে আয়। আজ কোন গল্পটা শুনবি? 🌙"}
+];
+const home=document.getElementById('home'),chatview=document.getElementById('chatview'),
+chat=document.getElementById('chat'),f=document.getElementById('f'),t=document.getElementById('t'),
+back=document.getElementById('back'),title=document.getElementById('title');
+const hist={};let cur=null;
+
+CHARS.forEach(c=>{
+  const d=document.createElement('div');d.className='card';
+  d.innerHTML='<div class="e">'+c.e+'</div><div class="n">'+c.n+'</div><div class="d">'+c.d+'</div>';
+  d.onclick=()=>openChar(c);
+  home.appendChild(d);
+});
+
+function add(text,cls){
+  const d=document.createElement('div');d.className='msg '+cls;d.textContent=text;
+  chat.appendChild(d);chat.scrollTop=chat.scrollHeight;return d;
+}
+function openChar(c){
+  cur=c;hist[c.id]=hist[c.id]||[];
+  home.style.display='none';chatview.style.display='flex';back.style.display='block';
+  title.textContent=c.e+' '+c.n;chat.innerHTML='';
+  add(c.g,'bot');
+  hist[c.id].forEach(m=>add(m.text,m.role==='user'?'user':'bot'));
+}
+back.onclick=()=>{
+  cur=null;chatview.style.display='none';home.style.display='grid';
+  back.style.display='none';title.textContent='কার সাথে কথা বলবে?';
+};
 f.addEventListener('submit',async e=>{
   e.preventDefault();
-  const text=t.value.trim(); if(!text) return;
-  t.value=''; add(text,'user');
-  history.push({role:'user',text});
+  const text=t.value.trim();if(!text||!cur)return;
+  t.value='';const h=hist[cur.id];
+  h.push({role:'user',text});add(text,'user');
   const wait=add('লিখছে...','bot');
   try{
-    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history})});
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({character:cur.id,messages:h})});
     const data=await r.json();
-    wait.textContent=data.reply||'কিছু একটা সমস্যা হয়েছে।';
-    history.push({role:'model',text:data.reply||''});
+    const reply=data.reply||'কিছু একটা সমস্যা হয়েছে।';
+    wait.textContent=reply;h.push({role:'model',text:reply});
   }catch(err){wait.textContent='ইন্টারনেট সমস্যা, আবার চেষ্টা করো।'}
 });
 </script>

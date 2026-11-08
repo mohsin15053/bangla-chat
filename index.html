@@ -7,7 +7,8 @@
 <style>
   body{margin:0;font-family:sans-serif;background:#111;color:#eee;height:100vh;display:flex;flex-direction:column}
   header{padding:14px;background:#1c1c1c;font-weight:bold;text-align:center;position:relative}
-  #back{position:absolute;left:10px;top:8px;background:none;border:0;color:#eee;font-size:24px;display:none}
+  #back,#clear{position:absolute;top:8px;background:none;border:0;color:#eee;font-size:22px;display:none}
+  #back{left:10px}#clear{right:10px}
   #home{flex:1;overflow-y:auto;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:12px;align-content:start}
   .card{background:#1f1f1f;border-radius:14px;padding:16px;text-align:center}
   .card .e{font-size:42px}
@@ -24,7 +25,7 @@
 </style>
 </head>
 <body>
-<header><button id="back">←</button><span id="title">কার সাথে কথা বলবে?</span></header>
+<header><button id="back">←</button><span id="title">কার সাথে কথা বলবে?</span><button id="clear" title="চ্যাট মুছুন">🗑</button></header>
 <div id="home"></div>
 <div id="chatview">
   <div id="chat"></div>
@@ -42,8 +43,12 @@ const CHARS=[
 ];
 const home=document.getElementById('home'),chatview=document.getElementById('chatview'),
 chat=document.getElementById('chat'),f=document.getElementById('f'),t=document.getElementById('t'),
-back=document.getElementById('back'),title=document.getElementById('title');
-const hist={};let cur=null;
+back=document.getElementById('back'),clearBtn=document.getElementById('clear'),title=document.getElementById('title');
+const KEY='bc_hist_v1';
+let hist={};let cur=null;
+try{hist=JSON.parse(localStorage.getItem(KEY)||'{}')}catch(e){hist={}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(hist))}catch(e){}}
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
 
 CHARS.forEach(c=>{
   const d=document.createElement('div');d.className='card';
@@ -58,28 +63,42 @@ function add(text,cls){
 }
 function openChar(c){
   cur=c;hist[c.id]=hist[c.id]||[];
-  home.style.display='none';chatview.style.display='flex';back.style.display='block';
+  home.style.display='none';chatview.style.display='flex';
+  back.style.display='block';clearBtn.style.display='block';
   title.textContent=c.e+' '+c.n;chat.innerHTML='';
   add(c.g,'bot');
   hist[c.id].forEach(m=>add(m.text,m.role==='user'?'user':'bot'));
 }
 back.onclick=()=>{
   cur=null;chatview.style.display='none';home.style.display='grid';
-  back.style.display='none';title.textContent='কার সাথে কথা বলবে?';
+  back.style.display='none';clearBtn.style.display='none';
+  title.textContent='কার সাথে কথা বলবে?';
 };
+clearBtn.onclick=()=>{
+  if(!cur||!confirm('এই চ্যাটের সব কথা মুছে ফেলবে?'))return;
+  hist[cur.id]=[];save();openChar(cur);
+};
+async function ask(h){
+  for(let i=0;i<2;i++){
+    try{
+      const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({character:cur.id,messages:h})});
+      const data=await r.json();
+      if(data.reply&&!data.busy)return data.reply;
+    }catch(e){}
+    await wait(2500);
+  }
+  return null;
+}
 f.addEventListener('submit',async e=>{
   e.preventDefault();
   const text=t.value.trim();if(!text||!cur)return;
-  t.value='';const h=hist[cur.id];
-  h.push({role:'user',text});add(text,'user');
-  const wait=add('লিখছে...','bot');
-  try{
-    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({character:cur.id,messages:h})});
-    const data=await r.json();
-    const reply=data.reply||'কিছু একটা সমস্যা হয়েছে।';
-    wait.textContent=reply;h.push({role:'model',text:reply});
-  }catch(err){wait.textContent='ইন্টারনেট সমস্যা, আবার চেষ্টা করো।'}
+  t.value='';const c=cur,h=hist[c.id];
+  h.push({role:'user',text});save();add(text,'user');
+  const w=add('লিখছে...','bot');
+  const reply=await ask(h);
+  if(reply){w.textContent=reply;h.push({role:'model',text:reply});save();}
+  else{w.textContent='এখন সার্ভারে খুব ভিড়, কিছুক্ষণ পর আবার পাঠাও। 🙏';h.pop();save();}
 });
 </script>
 </body>

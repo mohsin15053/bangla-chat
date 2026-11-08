@@ -1,6 +1,7 @@
 const MODELS = [
   process.env.GEMINI_MODEL || "gemini-flash-latest",
-  "gemini-flash-lite-latest"
+  "gemini-flash-lite-latest",
+  "gemini-2.5-flash"
 ];
 
 const RULES = ` তুমি সবসময় সহজ চলিত বাংলায় কথা বলো। কখনো ক্যারেক্টার ভেঙে বেরিয়ে এসো না। অশ্লীল, যৌন বা ক্ষতিকর কিছু বলবে না। কেউ নিজের ক্ষতি করার কথা বললে আন্তরিকভাবে পাশে থেকে কাছের মানুষ বা বিশেষজ্ঞের সাহায্য নিতে বলো।`;
@@ -33,7 +34,7 @@ module.exports = async (req, res) => {
           method: "POST",
           headers: { "Content-Type": "application/json", "x-goog-api-key": key },
           body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents }),
-          signal: AbortSignal.timeout(6000)
+          signal: AbortSignal.timeout(4000)
         }
       );
       const data = await r.json();
@@ -41,5 +42,5 @@ module.exports = async (req, res) => {
       if (reply) return res.status(200).json({ reply });
     } catch (e) {}
   }
-  res.status(200).json({ reply: "এখন একটু ব্যস্ত আছি, কিছুক্ষণ পর আবার বলো। 🙏" });
+  res.status(200).json({ reply: "busy", busy: true });
 };
